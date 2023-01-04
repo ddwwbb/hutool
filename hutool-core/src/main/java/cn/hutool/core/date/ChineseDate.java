@@ -8,6 +8,7 @@ import cn.hutool.core.date.chinese.LunarInfo;
 import cn.hutool.core.date.chinese.SolarTerms;
 import cn.hutool.core.util.StrUtil;
 
+import java.time.LocalDate;
 import java.util.Calendar;
 import java.util.Date;
 
@@ -47,14 +48,24 @@ public class ChineseDate {
 	 * @param date 公历日期
 	 */
 	public ChineseDate(Date date) {
+		this(LocalDateTimeUtil.ofDate(date.toInstant()));
+	}
+
+	/**
+	 * 通过公历日期构造
+	 *
+	 * @param localDate 公历日期
+	 * @since 5.7.22
+	 */
+	public ChineseDate(LocalDate localDate) {
 		// 公历
-		final DateTime dt = DateUtil.beginOfDay(date);
-		gyear = dt.year();
-		gmonthBase1 = dt.month() + 1;
-		gday = dt.dayOfMonth();
+		gyear = localDate.getYear();
+		gmonthBase1 = localDate.getMonthValue();
+		gday = localDate.getDayOfMonth();
 
 		// 求出和1900年1月31日相差的天数
-		int offset = (int) ((dt.getTime() / DateUnit.DAY.getMillis()) - LunarInfo.BASE_DAY);
+		int offset = (int) (localDate.toEpochDay() - LunarInfo.BASE_DAY);
+
 		// 计算农历年份
 		// 用offset减去每农历年的天数，计算当天是农历第几天，offset是当年的第几天
 		int daysOfYear;
@@ -69,7 +80,7 @@ public class ChineseDate {
 
 		year = iYear;
 		// 计算农历月份
-		int leapMonth = LunarInfo.leapMonth(iYear); // 闰哪个月,1-12
+		final int leapMonth = LunarInfo.leapMonth(iYear); // 闰哪个月,1-12
 		// 用当年的天数offset,逐个减去每月（农历）的天数，求出当天是本月的第几天
 		int month;
 		int daysOfMonth;
@@ -92,7 +103,7 @@ public class ChineseDate {
 			offset -= daysOfMonth;
 		}
 
-		this.isLeapMonth = month == (leapMonth + 1);
+		this.isLeapMonth = leapMonth > 0 && (month == (leapMonth + 1));
 		if (hasLeapMonth && false == this.isLeapMonth) {
 			// 当前月份前有闰月，则月份显示要-1，除非当前月份就是润月
 			month--;
@@ -102,7 +113,8 @@ public class ChineseDate {
 	}
 
 	/**
-	 * 构造方法传入日期
+	 * 构造方法传入日期<br>
+	 * 此方法自动判断闰月，如果chineseMonth为本年的闰月，则按照闰月计算
 	 *
 	 * @param chineseYear  农历年
 	 * @param chineseMonth 农历月，1表示一月（正月）
@@ -110,28 +122,33 @@ public class ChineseDate {
 	 * @since 5.2.4
 	 */
 	public ChineseDate(int chineseYear, int chineseMonth, int chineseDay) {
-		this(chineseYear, chineseMonth, chineseDay, chineseMonth == LunarInfo.leapMonth(chineseYear) + 1);
+		this(chineseYear, chineseMonth, chineseDay, chineseMonth == LunarInfo.leapMonth(chineseYear));
 	}
 
 	/**
-	 * 构造方法传入日期
+	 * 构造方法传入日期<br>
+	 * 通过isLeapMonth参数区分是否闰月，如五月是闰月，当isLeapMonth为{@code true}时，表示润五月，{@code false}表示五月
 	 *
 	 * @param chineseYear  农历年
-	 * @param chineseMonth 农历月，1表示一月（正月）
+	 * @param chineseMonth 农历月，1表示一月（正月），如果isLeapMonth为{@code true}，1表示润一月
 	 * @param chineseDay   农历日，1表示初一
 	 * @param isLeapMonth  当前月份是否闰月
 	 * @since 5.7.18
 	 */
 	public ChineseDate(int chineseYear, int chineseMonth, int chineseDay, boolean isLeapMonth) {
+		if(chineseMonth != LunarInfo.leapMonth(chineseYear)){
+			// issue#I5YB1A，用户传入的月份可能非闰月，此时此参数无效。
+			isLeapMonth = false;
+		}
+
 		this.day = chineseDay;
-		this.month = chineseMonth;
 		// 当月是闰月的后边的月定义为闰月，如润的是五月，则5表示五月，6表示润五月
 		this.isLeapMonth = isLeapMonth;
+		// 闰月时，农历月份+1，如6表示润五月
+		this.month = isLeapMonth ? chineseMonth + 1 : chineseMonth;
 		this.year = chineseYear;
-		//先判断传入的月份是不是闰月
-		int leapMonth = LunarInfo.leapMonth(chineseYear);
 
-		final DateTime dateTime = lunar2solar(chineseYear, chineseMonth, chineseDay, chineseMonth == leapMonth);
+		final DateTime dateTime = lunar2solar(chineseYear, chineseMonth, chineseDay, isLeapMonth);
 		if (null != dateTime) {
 			//初始化公历年
 			this.gday = dateTime.dayOfMonth();

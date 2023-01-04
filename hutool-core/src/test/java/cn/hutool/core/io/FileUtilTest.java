@@ -392,6 +392,22 @@ public class FileUtilTest {
 		path = FileUtil.isWindows() ? "d:\\aaa\\bbb\\cc\\fff.xlsx" : "~/Desktop/hutool/fff.xlsx";
 		mainName = FileUtil.extName(path);
 		Assert.assertEquals("xlsx", mainName);
+
+		path = FileUtil.isWindows() ? "d:\\aaa\\bbb\\cc\\fff.tar.gz" : "~/Desktop/hutool/fff.tar.gz";
+		mainName = FileUtil.extName(path);
+		Assert.assertEquals("tar.gz", mainName);
+
+		path = FileUtil.isWindows() ? "d:\\aaa\\bbb\\cc\\fff.tar.Z" : "~/Desktop/hutool/fff.tar.Z";
+		mainName = FileUtil.extName(path);
+		Assert.assertEquals("tar.Z", mainName);
+
+		path = FileUtil.isWindows() ? "d:\\aaa\\bbb\\cc\\fff.tar.bz2" : "~/Desktop/hutool/fff.tar.bz2";
+		mainName = FileUtil.extName(path);
+		Assert.assertEquals("tar.bz2", mainName);
+
+		path = FileUtil.isWindows() ? "d:\\aaa\\bbb\\cc\\fff.tar.xz" : "~/Desktop/hutool/fff.tar.xz";
+		mainName = FileUtil.extName(path);
+		Assert.assertEquals("tar.xz", mainName);
 	}
 
 	@Test
@@ -430,6 +446,10 @@ public class FileUtilTest {
 		Assert.assertEquals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", mimeType);
 		mimeType = FileUtil.getMimeType("test.pptx");
 		Assert.assertEquals("application/vnd.openxmlformats-officedocument.presentationml.presentation", mimeType);
+
+		// pr#2617@Github
+		mimeType = FileUtil.getMimeType("test.wgt");
+		Assert.assertEquals("application/widget", mimeType);
 	}
 
 	@Test
@@ -451,5 +471,43 @@ public class FileUtilTest {
 	public void appendLinesTest(){
 		List<String> list = ListUtil.toList("a", "b", "c");
 		FileUtil.appendLines(list, FileUtil.file("d:/test/appendLines.txt"), CharsetUtil.CHARSET_UTF_8);
+	}
+
+	@Test
+	@Ignore
+	public void createTempFileTest(){
+		File nullDirTempFile = FileUtil.createTempFile();
+		Assert.assertTrue(nullDirTempFile.exists());
+
+		File suffixDirTempFile = FileUtil.createTempFile(".xlsx",true);
+		Assert.assertEquals("xlsx", FileUtil.getSuffix(suffixDirTempFile));
+
+		File prefixDirTempFile = FileUtil.createTempFile("prefix",".xlsx",true);
+		Assert.assertTrue(FileUtil.getPrefix(prefixDirTempFile).startsWith("prefix"));
+	}
+
+	@Test
+	@Ignore
+	public void getTotalLinesTest() {
+		// 千万行秒级内返回
+		final int totalLines = FileUtil.getTotalLines(FileUtil.file(""));
+		Assert.assertEquals(10000000, totalLines);
+	}
+
+	@Test
+	public void isAbsolutePathTest(){
+		String path = "d:/test\\aaa.txt";
+		Assert.assertTrue(FileUtil.isAbsolutePath(path));
+
+		path = "test\\aaa.txt";
+		Assert.assertFalse(FileUtil.isAbsolutePath(path));
+	}
+
+	@Test
+	@Ignore
+	public void copyTest2(){
+		final File copy = FileUtil.copy("d:/test/qrcodeCustom.png", "d:/test/pic", false);
+		// 当复制文件到目标目录的时候，返回复制的目标文件，而非目录
+		Console.log(copy);
 	}
 }

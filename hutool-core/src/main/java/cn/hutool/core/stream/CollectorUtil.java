@@ -3,9 +3,12 @@ package cn.hutool.core.stream;
 import cn.hutool.core.lang.Opt;
 import cn.hutool.core.util.StrUtil;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -14,6 +17,7 @@ import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 /**
  * 可变的汇聚操作{@link Collector} 相关工具封装
@@ -97,26 +101,23 @@ public class CollectorUtil {
 	public static <T, K, D, A, M extends Map<K, D>> Collector<T, ?, M> groupingBy(Function<? super T, ? extends K> classifier,
 																				  Supplier<M> mapFactory,
 																				  Collector<? super T, A, D> downstream) {
-		Supplier<A> downstreamSupplier = downstream.supplier();
-		BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
-		BiConsumer<Map<K, A>, T> accumulator = (m, t) -> {
-			K key = Opt.ofNullable(t).map(classifier).orElse(null);
-			A container = m.computeIfAbsent(key, k -> downstreamSupplier.get());
+		final Supplier<A> downstreamSupplier = downstream.supplier();
+		final BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
+		final BiConsumer<Map<K, A>, T> accumulator = (m, t) -> {
+			final K key = Opt.ofNullable(t).map(classifier).orElse(null);
+			final A container = m.computeIfAbsent(key, k -> downstreamSupplier.get());
 			downstreamAccumulator.accept(container, t);
 		};
-		BinaryOperator<Map<K, A>> merger = mapMerger(downstream.combiner());
-		@SuppressWarnings("unchecked")
-		Supplier<Map<K, A>> mangledFactory = (Supplier<Map<K, A>>) mapFactory;
+		final BinaryOperator<Map<K, A>> merger = mapMerger(downstream.combiner());
+		@SuppressWarnings("unchecked") final Supplier<Map<K, A>> mangledFactory = (Supplier<Map<K, A>>) mapFactory;
 
 		if (downstream.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
 			return new SimpleCollector<>(mangledFactory, accumulator, merger, CH_ID);
 		} else {
-			@SuppressWarnings("unchecked")
-			Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
-			Function<Map<K, A>, M> finisher = intermediate -> {
+			@SuppressWarnings("unchecked") final Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
+			final Function<Map<K, A>, M> finisher = intermediate -> {
 				intermediate.replaceAll((k, v) -> downstreamFinisher.apply(v));
-				@SuppressWarnings("unchecked")
-				M castResult = (M) intermediate;
+				@SuppressWarnings("unchecked") final M castResult = (M) intermediate;
 				return castResult;
 			};
 			return new SimpleCollector<>(mangledFactory, accumulator, merger, finisher, CH_NOID);
@@ -140,6 +141,18 @@ public class CollectorUtil {
 		return groupingBy(classifier, HashMap::new, downstream);
 	}
 
+	/**
+	 * 提供对null值友好的groupingBy操作的{@link Collector}实现
+	 *
+	 * @param classifier 分组依据
+	 * @param <T>        实体类型
+	 * @param <K>        实体中的分组依据对应类型，也是Map中key的类型
+	 * @return {@link Collector}
+	 */
+	public static <T, K> Collector<T, ?, Map<K, List<T>>>
+	groupingBy(Function<? super T, ? extends K> classifier) {
+		return groupingBy(classifier, Collectors.toList());
+	}
 
 	/**
 	 * 对null友好的 toMap 操作的 {@link Collector}实现，默认使用HashMap
@@ -200,5 +213,102 @@ public class CollectorUtil {
 		};
 	}
 
+	/**
+	 * 聚合这种数据类型:{@code Collection<Map<K,V>> => Map<K,List<V>>}
+	 * 其中key相同的value，会累加到List中
+	 *
+	 * @param <K> key的类型
+	 * @param <V> value的类型
+	 * @return 聚合后的map
+	 * @since 5.8.5
+	 */
+	public static <K, V> Collector<Map<K, V>, ?, Map<K, List<V>>> reduceListMap() {
+		return reduceListMap(HashMap::new);
+	}
+
+	/**
+	 * 聚合这种数据类型:{@code Collection<Map<K,V>> => Map<K,List<V>>}
+	 * 其中key相同的value，会累加到List中
+	 *
+	 * @param mapSupplier 可自定义map的类型如concurrentHashMap等
+	 * @param <K>         key的类型
+	 * @param <V>         value的类型
+	 * @param <R>         返回值的类型
+	 * @return 聚合后的map
+	 * @since 5.8.5
+	 */
+	public static <K, V, R extends Map<K, List<V>>> Collector<Map<K, V>, ?, R> reduceListMap(final Supplier<R> mapSupplier) {
+		return Collectors.reducing(mapSupplier.get(), value -> {
+					final R result = mapSupplier.get();
+					value.forEach((k, v) -> result.computeIfAbsent(k, i -> new ArrayList<>()).add(v));
+					return result;
+				}, (l, r) -> {
+					r.forEach((k, v) -> l.computeIfAbsent(k, i -> new ArrayList<>()).addAll(v));
+					return l;
+				}
+		);
+	}
+
+	/**
+	 * 提供对null值友好的groupingBy操作的{@link Collector}实现，
+	 * 对集合分组，然后对分组后的值集合进行映射
+	 *
+	 * @param classifier       分组依据
+	 * @param valueMapper      值映射方法
+	 * @param valueCollFactory 值集合的工厂方法
+	 * @param mapFactory       Map集合的工厂方法
+	 * @param <T>              元素类型
+	 * @param <K>              键类型
+	 * @param <R>              值类型
+	 * @param <C>              值集合类型
+	 * @param <M>              返回的Map集合类型
+	 * @return {@link Collector}
+	 */
+	public static <T, K, R, C extends Collection<R>, M extends Map<K, C>> Collector<T, ?, M> groupingBy(
+			final Function<? super T, ? extends K> classifier,
+			final Function<? super T, ? extends R> valueMapper,
+			final Supplier<C> valueCollFactory,
+			final Supplier<M> mapFactory) {
+		return groupingBy(classifier, mapFactory, Collectors.mapping(
+				valueMapper, Collectors.toCollection(valueCollFactory)
+		));
+	}
+
+	/**
+	 * 提供对null值友好的groupingBy操作的{@link Collector}实现，
+	 * 对集合分组，然后对分组后的值集合进行映射
+	 *
+	 * @param classifier       分组依据
+	 * @param valueMapper      值映射方法
+	 * @param valueCollFactory 值集合的工厂方法
+	 * @param <T>              元素类型
+	 * @param <K>              键类型
+	 * @param <R>              值类型
+	 * @param <C>              值集合类型
+	 * @return {@link Collector}
+	 */
+	public static <T, K, R, C extends Collection<R>> Collector<T, ?, Map<K, C>> groupingBy(
+			final Function<? super T, ? extends K> classifier,
+			final Function<? super T, ? extends R> valueMapper,
+			final Supplier<C> valueCollFactory) {
+		return groupingBy(classifier, valueMapper, valueCollFactory, HashMap::new);
+	}
+
+	/**
+	 * 提供对null值友好的groupingBy操作的{@link Collector}实现，
+	 * 对集合分组，然后对分组后的值集合进行映射
+	 *
+	 * @param classifier       分组依据
+	 * @param valueMapper      值映射方法
+	 * @param <T>              元素类型
+	 * @param <K>              键类型
+	 * @param <R>              值类型
+	 * @return {@link Collector}
+	 */
+	public static <T, K, R> Collector<T, ?, Map<K, List<R>>> groupingBy(
+			final Function<? super T, ? extends K> classifier,
+			final Function<? super T, ? extends R> valueMapper) {
+		return groupingBy(classifier, valueMapper, ArrayList::new, HashMap::new);
+	}
 
 }

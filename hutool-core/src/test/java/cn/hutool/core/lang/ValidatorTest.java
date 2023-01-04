@@ -221,6 +221,7 @@ public class ValidatorTest {
 	public void isCarVinTest(){
 		Assert.assertTrue(Validator.isCarVin("LSJA24U62JG269225"));
 		Assert.assertTrue(Validator.isCarVin("LDC613P23A1305189"));
+		Assert.assertFalse(Validator.isCarVin("LOC613P23A1305189"));
 	}
 
 	@Test
@@ -244,5 +245,16 @@ public class ValidatorTest {
 
 		Assert.assertTrue(Validator.isMatchRegex(Validator.URL, content));
 		Assert.assertTrue(Validator.isMatchRegex(Validator.URL_HTTP, content));
+	}
+
+	@Test
+	public void isChineseNameTest(){
+		Assert.assertTrue(Validator.isChineseName("阿卜杜尼亚孜·毛力尼亚孜"));
+		Assert.assertFalse(Validator.isChineseName("阿卜杜尼亚孜./毛力尼亚孜"));
+		Assert.assertTrue(Validator.isChineseName("段正淳"));
+		Assert.assertFalse(Validator.isChineseName("孟  伟"));
+		Assert.assertFalse(Validator.isChineseName("李"));
+		Assert.assertFalse(Validator.isChineseName("连逍遥0"));
+		Assert.assertFalse(Validator.isChineseName("SHE"));
 	}
 }

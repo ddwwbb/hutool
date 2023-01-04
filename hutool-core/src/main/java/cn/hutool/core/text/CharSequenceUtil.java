@@ -86,8 +86,7 @@ public class CharSequenceUtil {
 	 * @see #isEmpty(CharSequence)
 	 */
 	public static boolean isBlank(CharSequence str) {
-		int length;
-
+		final int length;
 		if ((str == null) || ((length = str.length()) == 0)) {
 			return true;
 		}
@@ -694,7 +693,12 @@ public class CharSequenceUtil {
 
 	/**
 	 * 是否以指定字符串开头<br>
-	 * 如果给定的字符串和开头字符串都为null则返回true，否则任意一个值为null返回false
+	 * 如果给定的字符串和开头字符串都为null则返回true，否则任意一个值为null返回false<br>
+	 * <pre>
+	 *     CharSequenceUtil.startWith("123", "123", false, true);   -- false
+	 *     CharSequenceUtil.startWith("ABCDEF", "abc", true, true); -- true
+	 *     CharSequenceUtil.startWith("abc", "abc", true, true);    -- false
+	 * </pre>
 	 *
 	 * @param str          被监测字符串
 	 * @param prefix       开头字符串
@@ -711,12 +715,8 @@ public class CharSequenceUtil {
 			return null == str && null == prefix;
 		}
 
-		boolean isStartWith;
-		if (ignoreCase) {
-			isStartWith = str.toString().toLowerCase().startsWith(prefix.toString().toLowerCase());
-		} else {
-			isStartWith = str.toString().startsWith(prefix.toString());
-		}
+		boolean isStartWith = str.toString()
+				.regionMatches(ignoreCase, 0, prefix.toString(), 0, prefix.length());
 
 		if (isStartWith) {
 			return (false == ignoreEquals) || (false == equals(str, prefix, ignoreCase));
@@ -779,6 +779,28 @@ public class CharSequenceUtil {
 		return false;
 	}
 
+	/**
+	 * 给定字符串是否以任何一个字符串结尾（忽略大小写）<br>
+	 * 给定字符串和数组为空都返回false
+	 *
+	 * @param str      给定字符串
+	 * @param suffixes 需要检测的结尾字符串
+	 * @return 给定字符串是否以任何一个字符串结尾
+	 * @since 5.8.1
+	 */
+	public static boolean startWithAnyIgnoreCase(final CharSequence str, final CharSequence... suffixes) {
+		if (isEmpty(str) || ArrayUtil.isEmpty(suffixes)) {
+			return false;
+		}
+
+		for (final CharSequence suffix : suffixes) {
+			if (startWith(str, suffix, true)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// ------------------------------------------------------------------------ endWith
 
 	/**
@@ -799,21 +821,42 @@ public class CharSequenceUtil {
 	 * 是否以指定字符串结尾<br>
 	 * 如果给定的字符串和开头字符串都为null则返回true，否则任意一个值为null返回false
 	 *
-	 * @param str          被监测字符串
-	 * @param suffix       结尾字符串
-	 * @param isIgnoreCase 是否忽略大小写
+	 * @param str        被监测字符串
+	 * @param suffix     结尾字符串
+	 * @param ignoreCase 是否忽略大小写
 	 * @return 是否以指定字符串结尾
 	 */
-	public static boolean endWith(CharSequence str, CharSequence suffix, boolean isIgnoreCase) {
+	public static boolean endWith(CharSequence str, CharSequence suffix, boolean ignoreCase) {
+		return endWith(str, suffix, ignoreCase, false);
+	}
+
+	/**
+	 * 是否以指定字符串结尾<br>
+	 * 如果给定的字符串和开头字符串都为null则返回true，否则任意一个值为null返回false
+	 *
+	 * @param str          被监测字符串
+	 * @param suffix       结尾字符串
+	 * @param ignoreCase   是否忽略大小写
+	 * @param ignoreEquals 是否忽略字符串相等的情况
+	 * @return 是否以指定字符串结尾
+	 * @since 5.8.0
+	 */
+	public static boolean endWith(CharSequence str, CharSequence suffix, boolean ignoreCase, boolean ignoreEquals) {
 		if (null == str || null == suffix) {
+			if (ignoreEquals) {
+				return false;
+			}
 			return null == str && null == suffix;
 		}
 
-		if (isIgnoreCase) {
-			return str.toString().toLowerCase().endsWith(suffix.toString().toLowerCase());
-		} else {
-			return str.toString().endsWith(suffix.toString());
+		final int strOffset = str.length() - suffix.length();
+		boolean isEndWith = str.toString()
+				.regionMatches(ignoreCase, strOffset, suffix.toString(), 0, suffix.length());
+
+		if (isEndWith) {
+			return (false == ignoreEquals) || (false == equals(str, suffix, ignoreCase));
 		}
+		return false;
 	}
 
 	/**
@@ -964,6 +1007,26 @@ public class CharSequenceUtil {
 	}
 
 	/**
+	 * 检查指定字符串中是否含给定的所有字符串
+	 *
+	 * @param str       字符串
+	 * @param testChars 检查的字符
+	 * @return 字符串含有非检查的字符，返回false
+	 * @since 4.4.1
+	 */
+	public static boolean containsAll(CharSequence str, CharSequence... testChars) {
+		if (isBlank(str) || ArrayUtil.isEmpty(testChars)) {
+			return false;
+		}
+		for (CharSequence testChar : testChars) {
+			if (false == contains(str, testChar)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * 给定字符串是否包含空白符（空白符包括空格、制表符、全角空格和不间断空格）<br>
 	 * 如果给定字符串为null或者""，则返回false
 	 *
@@ -1020,7 +1083,7 @@ public class CharSequenceUtil {
 			// 如果被监测字符串和
 			return null == testStr;
 		}
-		return str.toString().toLowerCase().contains(testStr.toString().toLowerCase());
+		return indexOfIgnoreCase(str, testStr) > -1;
 	}
 
 	/**
@@ -1420,7 +1483,7 @@ public class CharSequenceUtil {
 		}
 
 		final String str2 = str.toString();
-		if (str2.toLowerCase().startsWith(prefix.toString().toLowerCase())) {
+		if (startWithIgnoreCase(str, prefix)) {
 			return subSuf(str2, prefix.length());// 截取后半段
 		}
 		return str2;
@@ -1469,7 +1532,7 @@ public class CharSequenceUtil {
 		}
 
 		final String str2 = str.toString();
-		if (str2.toLowerCase().endsWith(suffix.toString().toLowerCase())) {
+		if (endWithIgnoreCase(str, suffix)) {
 			return subPre(str2, str2.length() - suffix.length());
 		}
 		return str2;
@@ -2069,15 +2132,22 @@ public class CharSequenceUtil {
 
 	/**
 	 * 截取字符串,从指定位置开始,截取指定长度的字符串<br>
-	 * author weibaohui
+	 * 如果fromIndex为正数，则向后截取指定length长度，如果为负数，则向前截取length长度。
 	 *
 	 * @param input     原始字符串
 	 * @param fromIndex 开始的index,包括
 	 * @param length    要截取的长度
 	 * @return 截取后的字符串
+	 * @author weibaohui
 	 */
 	public static String subWithLength(String input, int fromIndex, int length) {
-		return sub(input, fromIndex, fromIndex + length);
+		final int toIndex;
+		if(fromIndex < 0){
+			toIndex = fromIndex - length;
+		}else{
+			toIndex = fromIndex + length;
+		}
+		return sub(input, fromIndex, toIndex);
 	}
 
 	/**
@@ -2642,6 +2712,21 @@ public class CharSequenceUtil {
 	}
 
 	/**
+	 * 截取第一个字串的部分字符，与第二个字符串比较（长度一致），判断截取的子串是否相同<br>
+	 * 任意一个字符串为null返回false
+	 *
+	 * @param str1       第一个字符串
+	 * @param start1     第一个字符串开始的位置
+	 * @param str2       第二个字符串
+	 * @param ignoreCase 是否忽略大小写
+	 * @return 子串是否相同
+	 * @since 3.2.1
+	 */
+	public static boolean isSubEquals(CharSequence str1, int start1, CharSequence str2, boolean ignoreCase) {
+		return isSubEquals(str1, start1, str2, 0, str2.length(), ignoreCase);
+	}
+
+	/**
 	 * 截取两个字符串的不同部分（长度一致），判断截取的子串是否相同<br>
 	 * 任意一个字符串为null返回false
 	 *
@@ -2670,7 +2755,7 @@ public class CharSequenceUtil {
 	 * 如果想输出 {} 使用 \\转义 { 即可，如果想输出 {} 之前的 \ 使用双转义符 \\\\ 即可<br>
 	 * 例：<br>
 	 * 通常使用：format("this is {} for {}", "a", "b") =》 this is a for b<br>
-	 * 转义{}： format("this is \\{} for {}", "a", "b") =》 this is \{} for a<br>
+	 * 转义{}： format("this is \\{} for {}", "a", "b") =》 this is {} for a<br>
 	 * 转义\： format("this is \\\\{} for {}", "a", "b") =》 this is \a for b<br>
 	 *
 	 * @param template 文本模板，被替换的部分用 {} 表示，如果模板为null，返回"null"
@@ -3602,9 +3687,48 @@ public class CharSequenceUtil {
 	}
 
 	/**
+	 * 替换指定字符串的指定区间内字符为指定字符串，字符串只重复一次<br>
+	 * 此方法使用{@link String#codePoints()}完成拆分替换
+	 *
+	 * @param str          字符串
+	 * @param startInclude 开始位置（包含）
+	 * @param endExclude   结束位置（不包含）
+	 * @param replacedStr  被替换的字符串
+	 * @return 替换后的字符串
+	 * @since 3.2.1
+	 */
+	public static String replace(CharSequence str, int startInclude, int endExclude, CharSequence replacedStr) {
+		if (isEmpty(str)) {
+			return str(str);
+		}
+		final String originalStr = str(str);
+		int[] strCodePoints = originalStr.codePoints().toArray();
+		final int strLength = strCodePoints.length;
+		if (startInclude > strLength) {
+			return originalStr;
+		}
+		if (endExclude > strLength) {
+			endExclude = strLength;
+		}
+		if (startInclude > endExclude) {
+			// 如果起始位置大于结束位置，不替换
+			return originalStr;
+		}
+
+		final StringBuilder stringBuilder = new StringBuilder();
+		for (int i = 0; i < startInclude; i++) {
+			stringBuilder.append(new String(strCodePoints, i, 1));
+		}
+		stringBuilder.append(replacedStr);
+		for (int i = endExclude; i < strLength; i++) {
+			stringBuilder.append(new String(strCodePoints, i, 1));
+		}
+		return stringBuilder.toString();
+	}
+
+	/**
 	 * 替换所有正则匹配的文本，并使用自定义函数决定如何替换<br>
 	 * replaceFun可以通过{@link Matcher}提取出匹配到的内容的不同部分，然后经过重新处理、组装变成新的内容放回原位。
-	 *
 	 * <pre class="code">
 	 *     replace(this.content, "(\\d+)", parameters -&gt; "-" + parameters.group(1) + "-")
 	 *     // 结果为："ZZZaaabbbccc中文-1234-"
@@ -3633,6 +3757,70 @@ public class CharSequenceUtil {
 	 */
 	public static String replace(CharSequence str, String regex, Func1<java.util.regex.Matcher, String> replaceFun) {
 		return ReUtil.replaceAll(str, regex, replaceFun);
+	}
+
+	/**
+	 * 替换字符串中最后一个指定字符串
+	 *
+	 * @param str         字符串
+	 * @param searchStr   被查找的字符串
+	 * @param replacedStr 被替换的字符串
+	 * @return 替换后的字符串
+	 */
+	public static String replaceLast(CharSequence str, CharSequence searchStr, CharSequence replacedStr) {
+		return replaceLast(str, searchStr, replacedStr, false);
+	}
+
+	/**
+	 * 替换字符串中最后一个指定字符串
+	 *
+	 * @param str         字符串
+	 * @param searchStr   被查找的字符串
+	 * @param replacedStr 被替换的字符串
+	 * @param ignoreCase  是否忽略大小写
+	 * @return 替换后的字符串
+	 */
+	public static String replaceLast(CharSequence str, CharSequence searchStr, CharSequence replacedStr, boolean ignoreCase) {
+		if (isEmpty(str)) {
+			return str(str);
+		}
+		int lastIndex = lastIndexOf(str, searchStr, str.length(), ignoreCase);
+		if (INDEX_NOT_FOUND == lastIndex) {
+			return str(str);
+		}
+		return replace(str, lastIndex, searchStr, replacedStr, ignoreCase);
+	}
+
+	/**
+	 * 替换字符串中第一个指定字符串
+	 *
+	 * @param str         字符串
+	 * @param searchStr   被查找的字符串
+	 * @param replacedStr 被替换的字符串
+	 * @return 替换后的字符串
+	 */
+	public static String replaceFirst(CharSequence str, CharSequence searchStr, CharSequence replacedStr) {
+		return replaceFirst(str, searchStr, replacedStr, false);
+	}
+
+	/**
+	 * 替换字符串中第一个指定字符串
+	 *
+	 * @param str         字符串
+	 * @param searchStr   被查找的字符串
+	 * @param replacedStr 被替换的字符串
+	 * @param ignoreCase  是否忽略大小写
+	 * @return 替换后的字符串
+	 */
+	public static String replaceFirst(CharSequence str, CharSequence searchStr, CharSequence replacedStr, boolean ignoreCase) {
+		if (isEmpty(str)) {
+			return str(str);
+		}
+		int startInclude = indexOf(str, searchStr, 0, ignoreCase);
+		if (INDEX_NOT_FOUND == startInclude) {
+			return str(str);
+		}
+		return replace(str, startInclude, startInclude + searchStr.length(), replacedStr);
 	}
 
 	/**
@@ -3802,7 +3990,7 @@ public class CharSequenceUtil {
 	 * @since 5.4.1
 	 */
 	@SuppressWarnings("unchecked")
-	public <T extends CharSequence> T firstNonNull(T... strs) {
+	public static <T extends CharSequence> T firstNonNull(T... strs) {
 		return ArrayUtil.firstNonNull(strs);
 	}
 
@@ -3816,7 +4004,7 @@ public class CharSequenceUtil {
 	 * @since 5.4.1
 	 */
 	@SuppressWarnings("unchecked")
-	public <T extends CharSequence> T firstNonEmpty(T... strs) {
+	public static <T extends CharSequence> T firstNonEmpty(T... strs) {
 		return ArrayUtil.firstMatch(StrUtil::isNotEmpty, strs);
 	}
 
@@ -3830,7 +4018,7 @@ public class CharSequenceUtil {
 	 * @since 5.4.1
 	 */
 	@SuppressWarnings("unchecked")
-	public <T extends CharSequence> T firstNonBlank(T... strs) {
+	public static <T extends CharSequence> T firstNonBlank(T... strs) {
 		return ArrayUtil.firstMatch(StrUtil::isNotBlank, strs);
 	}
 
@@ -4360,4 +4548,42 @@ public class CharSequenceUtil {
 	public static String normalize(CharSequence str) {
 		return Normalizer.normalize(str, Normalizer.Form.NFC);
 	}
+
+	/**
+	 * 在给定字符串末尾填充指定字符，以达到给定长度<br>
+	 * 如果字符串本身的长度大于等于length，返回原字符串
+	 *
+	 * @param str       字符串
+	 * @param fixedChar 补充的字符
+	 * @param length    补充到的长度
+	 * @return 补充后的字符串
+	 * @since 5.8.0
+	 */
+	public static String fixLength(CharSequence str, char fixedChar, int length) {
+		final int fixedLength = length - str.length();
+		if (fixedLength <= 0) {
+			return str.toString();
+		}
+		return str + repeat(fixedChar, fixedLength);
+	}
+
+	/**
+	 * <p>指定字符串数组中，是否包含空字符串。</p>
+	 * <p>如果传入参数对象不是为空,则返回false。如果字符串包含字母,不区分大小写,则返回true</p>
+	 *
+	 * @param str 对象
+	 * @return 如果为字符串, 是否有字母
+	 */
+	public static boolean hasLetter(CharSequence str) {
+		if (null == str) {
+			return false;
+		}
+		for (int i = 0; i < str.length(); i++) {
+			if (CharUtil.isLetter(str.charAt(i))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 }
